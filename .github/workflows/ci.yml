@@ -1,0 +1,165 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test & Analysis
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project source
+        run: flutter analyze
+
+      - name: Run unit tests with coverage
+        run: flutter test --coverage --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      - name: Fix coverage report paths
+        run: |
+          sed -i "" "s|SF:${GITHUB_WORKSPACE}/|SF:|g" coverage/lcov.info
+
+      - name: Convert lcov to Cobertura XML
+        run: |
+          pip install lcov_cobertura
+          python -m lcov_cobertura coverage/lcov.info \
+            --base-dir . \
+            --output coverage/cobertura.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/cobertura.xml
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  build_android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ env.GRADLE_USER_HOME }}/caches
+            ${{ env.GRADLE_USER_HOME }}/wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: echo "$GOOGLE_SERVICES" > android/app/google-services.json
+
+      - name: Build Android
+        run: flutter build apk --debug --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      - name: Clean up google-services.json
+        if: always()
+        run: rm -f android/app/google-services.json
+
+  build_ios:
+    name: Build iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ github.workspace }}/ios/Pods
+            ${{ env.HOME }}/Library/Caches/CocoaPods
+            ${{ env.HOME }}/.cocoapods
+            ${{ env.HOME }}/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO: ${{ secrets.GOOGLE_SERVICE_INFO }}
+        run: echo "$GOOGLE_SERVICE_INFO" > ios/Runner/GoogleService-Info.plist
+
+      - name: Build iOS (unsigned)
+        run: flutter build ios --debug --no-codesign --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      - name: Clean up GoogleService-Info.plist
+        if: always()
+        run: rm -f ios/Runner/GoogleService-Info.plist
