@@ -1,5 +1,4 @@
 name: Build
-
 on:
   push:
     branches:
@@ -10,15 +9,14 @@ on:
       - main
 
 jobs:
-  sonarqube:
-    name: Build & SonarQube Scan
-    runs-on: 	macos-latest
-
+  test:
+    name: Test & Analysis
+    runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
 
       - name: Cache
         uses: actions/cache@v5
@@ -27,13 +25,7 @@ jobs:
             ${{ runner.tool_cache }}/flutter
             ${{ env.PUB_CACHE }}
             ${{ github.workspace }}/.dart_tool
-            ${{ env.GRADLE_USER_HOME }}/caches
-            ${{ env.GRADLE_USER_HOME }}/wrapper
-            ${{ github.workspace }}/ios/Pods
-            ${{ env.HOME }}/Library/Caches/CocoaPods
-            ${{ env.HOME }}/.cocoapods
-            ${{ env.HOME }}/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties', 'ios/Podfile.lock') }}
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
             ${{ runner.os }}-flutter-
 
@@ -51,12 +43,102 @@ jobs:
       - name: Run unit tests with coverage
         run: flutter test --coverage
 
+      - name: Fix coverage report paths
+        run: |
+          sed -i "" "s|SF:${GITHUB_WORKSPACE}/|SF:|g" coverage/lcov.info
+
+      - name: Convert lcov to Cobertura XML
+        run: |
+          pip install lcov_cobertura
+          python -m lcov_cobertura coverage/lcov.info \
+            --base-dir . \
+            --output coverage/cobertura.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/cobertura.xml
+
+  build_android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ env.GRADLE_USER_HOME }}/caches
+            ${{ env.GRADLE_USER_HOME }}/wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build Android
         run: flutter build apk --debug
 
+  build_ios:
+    name: Build iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ github.workspace }}/ios/Pods
+            ${{ env.HOME }}/Library/Caches/CocoaPods
+            ${{ env.HOME }}/.cocoapods
+            ${{ env.HOME }}/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build iOS (unsigned)
-        run: |
-          flutter build ios --debug --no-codesign
+        run: flutter build ios --debug --no-codesign
+
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: [test, build_android, build_ios]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
