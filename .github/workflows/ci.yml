@@ -60,6 +60,17 @@ jobs:
           name: coverage-report
           path: coverage/cobertura.xml
 
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   build_android:
     name: Build Android
     runs-on: ubuntu-latest
@@ -79,6 +90,17 @@ jobs:
           key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-flutter-
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -123,24 +145,3 @@ jobs:
 
       - name: Build iOS (unsigned)
         run: flutter build ios --debug --no-codesign
-
-  sonarqube:
-    name: SonarQube Scan
-    runs-on: ubuntu-latest
-    needs: [test, build_android, build_ios]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download coverage report
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
