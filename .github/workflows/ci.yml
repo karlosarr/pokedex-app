@@ -12,7 +12,7 @@ on:
 jobs:
   sonarqube:
     name: Build & SonarQube Scan
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
