@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/pokemon_type_colors.dart';
 import '../providers/pokemon_providers.dart';
+import '../../domain/entities/pokemon.dart';
 
 class DetailPage extends ConsumerWidget {
   final String id;
@@ -105,7 +106,7 @@ class DetailPage extends ConsumerWidget {
                               height: 150,
                               width: 150,
                               fit: BoxFit.contain,
-                              errorWidget: (_, __, ___) => const Icon(
+                              errorWidget: (_, _, _) => const Icon(
                                 Icons.catching_pokemon,
                                 size: 100,
                                 color: Colors.white54,
@@ -186,7 +187,7 @@ class DetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatRow(stat, Color accentColor) {
+  Widget _buildStatRow(PokemonStat stat, Color accentColor) {
     final maxStat = 255.0;
     final statNames = {
       'hp': 'HP',

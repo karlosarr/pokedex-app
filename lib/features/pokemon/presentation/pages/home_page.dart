@@ -280,7 +280,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   height: 72,
                   width: 72,
                   fit: BoxFit.contain,
-                  placeholder: (_, __) => const SizedBox(
+                  placeholder: (_, _) => const SizedBox(
                     height: 72,
                     width: 72,
                     child: Center(
@@ -290,7 +290,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                     ),
                   ),
-                  errorWidget: (_, __, ___) => const Icon(
+                  errorWidget: (_, _, _) => const Icon(
                     Icons.catching_pokemon,
                     size: 56,
                     color: Colors.white54,
