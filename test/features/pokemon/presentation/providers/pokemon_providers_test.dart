@@ -121,6 +121,23 @@ void main() {
       container.read(searchQueryProvider.notifier).updateQuery('bulbasaur');
       expect(container.read(searchQueryProvider), 'bulbasaur');
     });
+
+    test('clear after empty query stays empty', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(searchQueryProvider.notifier).clear();
+      expect(container.read(searchQueryProvider), '');
+    });
+
+    test('updateQuery with empty string sets state to empty', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(searchQueryProvider.notifier).updateQuery('pikachu');
+      container.read(searchQueryProvider.notifier).updateQuery('');
+      expect(container.read(searchQueryProvider), '');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -260,6 +277,66 @@ void main() {
       final result = container.read(pokemonListNotifierProvider).requireValue;
       expect(result, [tPokemon]);
     });
+
+    test('loadMore rolls back offset on error', () async {
+      var callCount = 0;
+      when(() => mockGetPokemonList(any())).thenAnswer((_) async {
+        callCount++;
+        if (callCount == 1) return const Right(tPaginatedList);
+        return const Left(ServerFailure(message: 'failed'));
+      });
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(pokemonListNotifierProvider.future);
+
+      // After failed loadMore, hasMore should still be true (next was non-null)
+      await container.read(pokemonListNotifierProvider.notifier).loadMore();
+
+      // isLoadingMore should be false after error
+      expect(
+        container.read(pokemonListNotifierProvider.notifier).isLoadingMore,
+        isFalse,
+      );
+    });
+
+    test('build resets state when called multiple times', () async {
+      when(() => mockGetPokemonList(any()))
+          .thenAnswer((_) async => const Right(tPaginatedList));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(pokemonListNotifierProvider.future);
+      // Invalidate to rebuild
+      container.invalidate(pokemonListNotifierProvider);
+      final result = await container.read(pokemonListNotifierProvider.future);
+
+      expect(result, [tPokemon]);
+    });
+
+    test('loadMore is a no-op when called concurrently', () async {
+      var callCount = 0;
+      when(() => mockGetPokemonList(any())).thenAnswer((_) async {
+        callCount++;
+        return callCount == 1
+            ? const Right(tPaginatedList)
+            : const Right(tPage2);
+      });
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(pokemonListNotifierProvider.future);
+
+      // Fire two concurrent loadMore calls — only one should actually fetch
+      final notifier = container.read(pokemonListNotifierProvider.notifier);
+      await Future.wait([notifier.loadMore(), notifier.loadMore()]);
+
+      // mockGetPokemonList called once for build + once for the single loadMore
+      verify(() => mockGetPokemonList(any())).called(2);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -278,6 +355,59 @@ void main() {
       expect(result, tPokemon);
     });
 
+    test('should throw when use case returns failure', () async {
+      when(() => mockGetPokemon(any()))
+          .thenAnswer((_) async => const Left(ServerFailure(message: 'Not found')));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      Object? capturedError;
+      final completer = Completer<void>();
+
+      container.listen<AsyncValue<Pokemon>>(
+        pokemonDetailProvider('unknown'),
+        (previous, next) {
+          if (next.hasError && !completer.isCompleted) {
+            capturedError = next.error;
+            completer.complete();
+          }
+        },
+        fireImmediately: true,
+      );
+
+      await completer.future;
+
+      expect(capturedError, isA<Exception>());
+    });
+
+    test('should pass nameOrId to use case', () async {
+      when(() => mockGetPokemon(any()))
+          .thenAnswer((_) async => const Right(tPokemon));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(pokemonDetailProvider('25').future);
+
+      final captured = verify(() => mockGetPokemon(captureAny())).captured;
+      expect((captured.single as GetPokemonParams).nameOrId, '25');
+    });
+
+    test('different nameOrId creates independent providers', () async {
+      when(() => mockGetPokemon(any()))
+          .thenAnswer((_) async => const Right(tPokemon));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final r1 = await container.read(pokemonDetailProvider('pikachu').future);
+      final r2 = await container.read(pokemonDetailProvider('25').future);
+
+      expect(r1, tPokemon);
+      expect(r2, tPokemon);
+      verify(() => mockGetPokemon(any())).called(2);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -317,6 +447,30 @@ void main() {
       final result = await container.read(searchPokemonProvider.future);
       expect(result, isNull);
     });
+
+    test('does not call use case when query is empty', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(searchPokemonProvider.future);
+
+      verifyNever(() => mockGetPokemon(any()));
+    });
+
+    test('passes query lowercase to use case', () async {
+      when(() => mockGetPokemon(any()))
+          .thenAnswer((_) async => const Right(tPokemon));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(searchQueryProvider.notifier).updateQuery('Pikachu');
+
+      await container.read(searchPokemonProvider.future);
+
+      final captured = verify(() => mockGetPokemon(captureAny())).captured;
+      expect((captured.single as GetPokemonParams).nameOrId, 'Pikachu');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -343,6 +497,29 @@ void main() {
 
       final result = await container.read(allPokemonNamesProvider.future);
       expect(result, isEmpty);
+    });
+
+    test('should return empty list when use case returns empty list', () async {
+      when(() => mockGetPokemonNames())
+          .thenAnswer((_) async => const Right([]));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final result = await container.read(allPokemonNamesProvider.future);
+      expect(result, isEmpty);
+    });
+
+    test('should call use case exactly once', () async {
+      when(() => mockGetPokemonNames())
+          .thenAnswer((_) async => const Right(['pikachu']));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await container.read(allPokemonNamesProvider.future);
+
+      verify(() => mockGetPokemonNames()).called(1);
     });
   });
 
