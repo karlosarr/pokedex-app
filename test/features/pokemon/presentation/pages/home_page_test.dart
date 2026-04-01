@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -28,7 +29,12 @@ class _SuccessNotifier extends PokemonListNotifier {
   Future<List<Pokemon>> build() async => pokemons;
 
   @override
-  Future<void> loadMore() async {}
+  void Function()? onLoadMore;
+
+  @override
+  Future<void> loadMore() async {
+    if (onLoadMore != null) onLoadMore!();
+  }
 }
 
 class _LoadingNotifier extends PokemonListNotifier {
@@ -274,4 +280,66 @@ void main() {
     expect(find.text('Pikachu'), findsOneWidget);
     expect(find.text('Bulbasaur'), findsOneWidget);
   });
-}
+
+
+  testWidgets('scrolls to bottom triggers loadMore', (WidgetTester tester) async {
+    final manyPokemon = List.generate(
+      20,
+      (index) => Pokemon(
+        id: index + 1,
+        name: 'pokemon$index',
+        imageUrl: 'url',
+        types: ['normal'],
+        weight: 10,
+        height: 10,
+        baseExperience: 10,
+        stats: [],
+      ),
+    );
+
+    int loadMoreCallCount = 0;
+
+    final container = ProviderContainer(overrides: [
+      pokemonListNotifierProvider.overrideWith(() {
+        final notifier = _SuccessNotifier(manyPokemon);
+        notifier.onLoadMore = () => loadMoreCallCount++;
+        return notifier;
+      }),
+      allPokemonNamesProvider.overrideWith((ref) async => <String>[]),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_buildWidget(container));
+    await tester.pump();
+
+    final listFinder = find.byType(GridView);
+    await tester.pump();
+    await tester.drag(listFinder, const Offset(0, -5000));
+    await tester.pump();
+
+    expect(loadMoreCallCount, greaterThan(0));
+  });
+
+  testWidgets('tapping pokemon card calls context.push', (WidgetTester tester) async {
+    final container = ProviderContainer(overrides: [
+      pokemonListNotifierProvider
+          .overrideWith(() => _SuccessNotifier([_tPokemon])),
+      allPokemonNamesProvider.overrideWith((ref) async => <String>[]),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_buildWidget(container));
+    await tester.pump();
+    
+    bool pressed = false;
+    FlutterError.onError = (details) {
+      if (details.exception.toString().contains('No GoRouter found in context')) {
+        pressed = true;
+      }
+    };
+    
+    await tester.tap(find.text('Pikachu'));
+    await tester.pump();
+    
+    expect(pressed, isTrue);
+  });
