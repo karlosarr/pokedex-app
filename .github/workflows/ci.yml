@@ -110,8 +110,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: echo "$GOOGLE_SERVICES" > android/app/google-services.json
+
       - name: Build Android
         run: flutter build apk --debug --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      - name: Clean up google-services.json
+        if: always()
+        run: rm -f android/app/google-services.json
 
   build_ios:
     name: Build iOS
@@ -143,5 +152,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Create GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO: ${{ secrets.GOOGLE_SERVICE_INFO }}
+        run: echo "$GOOGLE_SERVICE_INFO" > ios/Runner/GoogleService-Info.plist
+
       - name: Build iOS (unsigned)
         run: flutter build ios --debug --no-codesign --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      - name: Clean up GoogleService-Info.plist
+        if: always()
+        run: rm -f ios/Runner/GoogleService-Info.plist
