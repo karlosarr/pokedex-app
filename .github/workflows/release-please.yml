@@ -1,0 +1,168 @@
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+name: release-please
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name:        ${{ steps.release.outputs.tag_name }}
+      version:         ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          release-type: dart
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build-android:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ env.GRADLE_USER_HOME }}/caches
+            ${{ env.GRADLE_USER_HOME }}/wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-flutter-
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # ── Firebase ──────────────────────────────────────────────────────────
+      - name: Create google-services.json
+        run: echo "${{ secrets.GOOGLE_SERVICES }}" > android/app/google-services.json
+
+      # ── Keystore (igual que tu job build_android en Build.yml) ────────────
+      - name: Decode Keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"  > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}"         >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}"               >> android/key.properties
+          echo "storeFile=keystore.jks"                          >> android/key.properties
+
+      # ── Build firmado ─────────────────────────────────────────────────────
+      - name: Build APK (split-per-abi) + AAB — release firmado
+        run: |
+          flutter build apk --release --split-per-abi \
+            --build-name=${{ needs.release-please.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} \
+            --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+          flutter build appbundle --release \
+            --build-name=${{ needs.release-please.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} \
+            --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      # ── Limpieza de artefactos sensibles ──────────────────────────────────
+      - name: Clean up sensitive files
+        if: always()
+        run: |
+          rm -f android/app/google-services.json
+          rm -f android/app/keystore.jks
+          rm -f android/key.properties
+
+      # ── Publicar en el GitHub Release creado por release-please ──────────
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            build/app/outputs/apk/release/*.apk
+            build/app/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-ios:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ github.workspace }}/ios/Pods
+            ${{ env.HOME }}/Library/Caches/CocoaPods
+            ${{ env.HOME }}/.cocoapods
+            ${{ env.HOME }}/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'ios/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-flutter-
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # ── Firebase ──────────────────────────────────────────────────────────
+      - name: Create GoogleService-Info.plist
+        run: echo "${{ secrets.GOOGLE_SERVICE_INFO }}" > ios/Runner/GoogleService-Info.plist
+
+      # ── Build sin codesign (igual que tu CI) ──────────────────────────────
+      - name: Build iOS unsigned
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name=${{ needs.release-please.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} \
+            --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
+
+      # ── Empaquetar como .ipa (sin firma, para distribución interna/TestFlight manual) ──
+      - name: Package as IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r ../../../app-${{ needs.release-please.outputs.version }}.ipa Payload/
+
+      # ── Limpieza ──────────────────────────────────────────────────────────
+      - name: Clean up sensitive files
+        if: always()
+        run: rm -f ios/Runner/GoogleService-Info.plist
+
+      # ── Publicar en el GitHub Release ─────────────────────────────────────
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: build/ios/app-${{ needs.release-please.outputs.version }}.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
