@@ -56,4 +56,16 @@ class PokemonRepositoryImpl implements PokemonRepository {
       return Left(ServerFailure(message: e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, List<String>>> getPokemonNames({int limit = 1302}) async {
+    try {
+      final modelList = await remoteDataSource.getPokemonList(limit: limit, offset: 0);
+      return Right(modelList.results.map((e) => e.name).toList());
+    } on ServerException catch (e) {
+      return Left(ServerFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
 }
