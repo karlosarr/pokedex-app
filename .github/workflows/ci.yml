@@ -12,13 +12,30 @@ on:
 jobs:
   sonarqube:
     name: Build & SonarQube Scan
-    runs-on: ubuntu-latest
+    runs-on: 	macos-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.tool_cache }}/flutter
+            ${{ env.PUB_CACHE }}
+            ${{ github.workspace }}/.dart_tool
+            ${{ env.GRADLE_USER_HOME }}/caches
+            ${{ env.GRADLE_USER_HOME }}/wrapper
+            ${{ github.workspace }}/ios/Pods
+            ${{ env.HOME }}/Library/Caches/CocoaPods
+            ${{ env.HOME }}/.cocoapods
+            ${{ env.HOME }}/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-flutter-${{ hashFiles('pubspec.lock', 'android/gradle/wrapper/gradle-wrapper.properties', 'ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -34,8 +51,12 @@ jobs:
       - name: Run unit tests with coverage
         run: flutter test --coverage
 
-      - name: Build
+      - name: Build Android
         run: flutter build apk --debug
+
+      - name: Build iOS (unsigned)
+        run: |
+          flutter build ios --debug --no-codesign
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
