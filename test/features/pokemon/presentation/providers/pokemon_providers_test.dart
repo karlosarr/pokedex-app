@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
@@ -145,10 +147,25 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      await expectLater(
-        container.read(pokemonListNotifierProvider.future),
-        throwsA(isA<Exception>()),
+      // In Riverpod 3, provider.future does not throw on AsyncError — it waits
+      // for the next AsyncData. Use a listener to capture the error state instead.
+      Object? capturedError;
+      final completer = Completer<void>();
+
+      container.listen<AsyncValue<List<Pokemon>>>(
+        pokemonListNotifierProvider,
+        (previous, next) {
+          if (next.hasError && !completer.isCompleted) {
+            capturedError = next.error;
+            completer.complete();
+          }
+        },
+        fireImmediately: true,
       );
+
+      await completer.future;
+
+      expect(capturedError, isA<Exception>());
     });
 
     test('loadMore appends new pokemon to the list', () async {
@@ -351,13 +368,25 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      // Keep a listener to prevent autoDispose from kicking in during the test
-      container.listen(pokemonListProvider, (prev, next) {});
+      // In Riverpod 3, provider.future does not throw on AsyncError — it waits
+      // for the next AsyncData. Use a listener to capture the error state instead.
+      Object? capturedError;
+      final completer = Completer<void>();
 
-      await expectLater(
-        container.read(pokemonListProvider.future),
-        throwsA(isA<Exception>()),
+      container.listen<AsyncValue<PaginatedPokemonList>>(
+        pokemonListProvider,
+        (previous, next) {
+          if (next.hasError && !completer.isCompleted) {
+            capturedError = next.error;
+            completer.complete();
+          }
+        },
+        fireImmediately: true,
       );
+
+      await completer.future;
+
+      expect(capturedError, isA<Exception>());
     });
   });
 }
