@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -28,7 +27,6 @@ class _SuccessNotifier extends PokemonListNotifier {
   @override
   Future<List<Pokemon>> build() async => pokemons;
 
-  @override
   void Function()? onLoadMore;
 
   @override
@@ -343,3 +341,4 @@ void main() {
     
     expect(pressed, isTrue);
   });
+}
