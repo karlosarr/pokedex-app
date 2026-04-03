@@ -77,7 +77,7 @@ jobs:
       # ── Build firmado ─────────────────────────────────────────────────────
       - name: Build APK (split-per-abi) + AAB — release firmado
         run: |
-          flutter build apk --release --split-per-abi \
+          flutter build apk --release \
             --build-name=${{ needs.release-please.outputs.version }} \
             --build-number=${{ github.run_number }} \
             --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} \
