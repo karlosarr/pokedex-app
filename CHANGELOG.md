@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/karlosarr/pokedexapp/compare/v1.1.0...v1.1.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **ci:** Write Fastlane API config to correct path ([57826e6](https://github.com/karlosarr/pokedexapp/commit/57826e60ed5fae99edaf5615e75b81ab101b3873))
+
 ## [1.1.0](https://github.com/karlosarr/pokedexapp/compare/v1.0.2...v1.1.0) (2026-04-03)
 
 
