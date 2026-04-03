@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.2](https://github.com/karlosarr/pokedexapp/compare/v1.1.1...v1.1.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* add AD_ID permission to AndroidManifest.xml ([7d32bae](https://github.com/karlosarr/pokedexapp/commit/7d32baee39a7d7bcdf489741b8aec89a9504d223))
+* add AD_ID permission to AndroidManifest.xml ([d0332fd](https://github.com/karlosarr/pokedexapp/commit/d0332fde051406b81620f6dee87af30f31af1d68))
+
 ## [1.1.1](https://github.com/karlosarr/pokedexapp/compare/v1.1.0...v1.1.1) (2026-04-03)
 
 
