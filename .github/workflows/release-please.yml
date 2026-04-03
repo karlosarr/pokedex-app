@@ -100,8 +100,7 @@ jobs:
         env:
           PLAY_STORE_CONFIG_JSON: ${{ secrets.PLAY_STORE_CONFIG_JSON }}
         run: |
-          mkdir -p android/fastlane
-          echo "$PLAY_STORE_CONFIG_JSON" > android/fastlane/fastlane-api.json
+          echo "$PLAY_STORE_CONFIG_JSON" > android/fastlane-api.json
 
       - name: Deploy to Play Store via Fastlane
         run: |
@@ -115,7 +114,7 @@ jobs:
           rm -f android/app/google-services.json
           rm -f android/app/keystore.jks
           rm -f android/key.properties
-          rm -f android/fastlane/fastlane-api.json
+          rm -f android/fastlane-api.json
 
       # ── Publicar en el GitHub Release creado por release-please ──────────
       - uses: softprops/action-gh-release@v2
