@@ -89,6 +89,25 @@ jobs:
             --dart-define=FIREBASE_ANDROID_API_KEY=${{ secrets.FIREBASE_ANDROID_API_KEY }} \
             --dart-define=FIREBASE_IOS_API_KEY=${{ secrets.FIREBASE_IOS_API_KEY }}
 
+      # ── Setup Ruby & Fastlane ─────────────────────────────────────────────
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: android
+
+      - name: Create Fastlane API JSON
+        env:
+          PLAY_STORE_CONFIG_JSON: ${{ secrets.PLAY_STORE_CONFIG_JSON }}
+        run: |
+          mkdir -p android/fastlane
+          echo "$PLAY_STORE_CONFIG_JSON" > android/fastlane/fastlane-api.json
+
+      - name: Deploy to Play Store via Fastlane
+        run: |
+          cd android
+          bundle exec fastlane deploy
+
       # ── Limpieza de artefactos sensibles ──────────────────────────────────
       - name: Clean up sensitive files
         if: always()
@@ -96,6 +115,7 @@ jobs:
           rm -f android/app/google-services.json
           rm -f android/app/keystore.jks
           rm -f android/key.properties
+          rm -f android/fastlane/fastlane-api.json
 
       # ── Publicar en el GitHub Release creado por release-please ──────────
       - uses: softprops/action-gh-release@v2
@@ -103,7 +123,6 @@ jobs:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             build/app/outputs/apk/release/*.apk
-            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
