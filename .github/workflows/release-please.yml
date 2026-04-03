@@ -123,7 +123,6 @@ jobs:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             build/app/outputs/apk/release/*.apk
-            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
