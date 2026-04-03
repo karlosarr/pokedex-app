@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/pokemon_type_colors.dart';
+import '../../../../core/utils/string_extensions.dart';
 import '../providers/pokemon_providers.dart';
 import '../../domain/entities/pokemon.dart';
 
@@ -78,7 +79,7 @@ class DetailPage extends ConsumerWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _capitalize(pokemon.name),
+                                pokemon.name.capitalize(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 28,
@@ -249,7 +250,7 @@ class DetailPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        _capitalize(type),
+        type.capitalize(),
         style: const TextStyle(
           color: Colors.white,
           fontSize: 12,
@@ -293,10 +294,5 @@ class DetailPage extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
   }
 }
