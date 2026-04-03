@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/theme/pokemon_type_colors.dart';
+import '../../../../core/utils/string_extensions.dart';
 import '../../domain/entities/pokemon.dart';
 import '../providers/pokemon_providers.dart';
 
@@ -121,7 +122,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   return ListTile(
                     leading: const Icon(Icons.catching_pokemon, size: 20, color: Colors.redAccent),
                     title: Text(
-                      _capitalize(option),
+                      option.capitalize(),
                       style: const TextStyle(color: Colors.white),
                     ),
                     onTap: () => onSelected(option),
@@ -249,7 +250,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                   // Name
                   Text(
-                    _capitalize(pokemon.name),
+                    pokemon.name.capitalize(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -312,7 +313,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        _capitalize(type),
+        type.capitalize(),
         style: const TextStyle(
           color: Colors.white,
           fontSize: 10,
@@ -320,10 +321,5 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ),
     );
-  }
-
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
   }
 }
