@@ -59,7 +59,9 @@ jobs:
 
       # ── Firebase ──────────────────────────────────────────────────────────
       - name: Create google-services.json
-        run: echo "${{ secrets.GOOGLE_SERVICES }}" > android/app/google-services.json
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: echo "$GOOGLE_SERVICES" > android/app/google-services.json
 
       # ── Keystore (igual que tu job build_android en Build.yml) ────────────
       - name: Decode Keystore
@@ -135,7 +137,9 @@ jobs:
 
       # ── Firebase ──────────────────────────────────────────────────────────
       - name: Create GoogleService-Info.plist
-        run: echo "${{ secrets.GOOGLE_SERVICE_INFO }}" > ios/Runner/GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO: ${{ secrets.GOOGLE_SERVICE_INFO }}
+        run: echo "$GOOGLE_SERVICE_INFO" > ios/Runner/GoogleService-Info.plist
 
       # ── Build sin codesign (igual que tu CI) ──────────────────────────────
       - name: Build iOS unsigned
