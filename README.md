@@ -1,4 +1,6 @@
 # Pokédex App
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=karlosarr_pokedexapp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=karlosarr_pokedexapp)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=karlosarr_pokedexapp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=karlosarr_pokedexapp)
 
 A Flutter Pokédex application for Android and iOS built with Clean Architecture, consuming the [PokeAPI v2](https://pokeapi.co/docs/v2).
 
